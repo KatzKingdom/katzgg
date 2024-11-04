@@ -30,24 +30,6 @@ body, html {
   background-color:#f5f5f5;
 }
 
-#errorTxt {
-  padding: 2px;
-  color: red;
-}
-
-#loginBtn {
-  color: #000;
-  display: inline;
-  border: 1.5px solid;
-  border-color: #000;
-  background-color:#f5f5f5;
-  padding: 10px 18px;
-  margin: 2px;
-  text-align: center;
-  cursor: pointer;
-  border-radius: 5px;
-}
-
 h3 {
   display: inline;
 }
