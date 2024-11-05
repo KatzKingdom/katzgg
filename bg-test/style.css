@@ -1,0 +1,23 @@
+/* Make sure the body fills the entire viewport */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+  
+body, html {
+    height: 100%;
+    overflow: hidden;
+}
+  
+/* Main background div with off-black color */
+#gradient-background {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: #111; /* Off-black base color */
+    transition: background 0.1s ease;
+    pointer-events: none; /* So it doesn't block mouse events */
+}
