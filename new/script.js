@@ -13,21 +13,25 @@ document.addEventListener("mousemove", (e) => {
 
     contentContainer.style.boxShadow = '0 0 20px rgba(255, 255, 255, 0.15)';
 });
-
-const pages = {
-    about: `<h1 class="text">About Me</h1><p class="text">About Me!</p>`,
-    portfolio: "<p>Portfolio!</p>",
-    contact: "<p>Contact!</p>"
-};
   
 // Handle navigation and dynamic content update
 document.querySelectorAll("nav a").forEach(link => {
     link.addEventListener("click", (e) => {
         e.preventDefault();
         const page = e.target.getAttribute("data-page");
-        pageContent.innerHTML = pages[page];
+        fetch(`pages/${page}.html`)
+        .then((res) => res.text())
+        .then((text) => {
+            pageContent.innerHTML = text;
+        })
+        .catch((e) => console.error(e));
     });
 });
   
 // Initialize with the About Me page content
-pageContent.innerHTML = pages.about;
+fetch(`pages/about.html`)
+    .then((res) => res.text())
+    .then((text) => {
+        pageContent.innerHTML = text;
+    })
+    .catch((e) => console.error(e));
