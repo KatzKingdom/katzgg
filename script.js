@@ -1,64 +1,37 @@
-const closeButtonAM = document.getElementById("closeButtonAM");
-const aboutMe = document.getElementById("aboutMe");
-const aboutMePopUp = document.getElementById("aboutMePopUp");
-const aboutMeOverlay = document.getElementById("aboutMeOverlay");
-const closeButtonC = document.getElementById("closeButtonC");
-const commissions = document.getElementById("commissions");
-const commissionsPopUp = document.getElementById("commissionsPopUp");
-const commissionsOverlay = document.getElementById("commissionsOverlay");
-const closeButtonP = document.getElementById("closeButtonP");
-const portfolio = document.getElementById("portfolio");
-const portfolioPopUp = document.getElementById("portfolioPopUp");
-const portfolioOverlay = document.getElementById("portfolioOverlay");
-const closeButtonPr = document.getElementById("closeButtonPr");
-const projects = document.getElementById("projects");
-const projectsPopUp = document.getElementById("projectsPopUp");
-const projectsOverlay = document.getElementById("projectsOverlay");
+const gradientBackground = document.getElementById("gradient-background");
+const pageContent = document.getElementById("page-content");
+const contentContainer = document.getElementById("content-container");
 
-closeButtonAM.addEventListener("click", async function(event) {
-  aboutMePopUp.classList.toggle("active");
-});
+document.addEventListener("mousemove", (e) => {
+    const { clientX: x, clientY: y } = e;
+  
+    // Create a radial gradient centered on the cursor
+    gradientBackground.style.background = `
+    radial-gradient(circle at ${x}px ${y}px, 
+    rgba(5, 5, 5, 0.8),
+    #000 15%)`;
 
-aboutMe.addEventListener("click", async function(event) {
-  aboutMePopUp.classList.toggle("active");
+    contentContainer.style.boxShadow = '0 0 20px rgba(255, 255, 255, 0.15)';
 });
-
-aboutMeOverlay.addEventListener("click", async function(event) {
-  aboutMePopUp.classList.toggle("active");
+  
+// Handle navigation and dynamic content update
+document.querySelectorAll("nav a").forEach(link => {
+    link.addEventListener("click", (e) => {
+        e.preventDefault();
+        const page = e.target.getAttribute("data-page");
+        fetch(`pages/${page}.html`)
+        .then((res) => res.text())
+        .then((text) => {
+            pageContent.innerHTML = text;
+        })
+        .catch((e) => console.error(e));
+    });
 });
-
-closeButtonC.addEventListener("click", async function(event) {
-  commissionsPopUp.classList.toggle("active");
-});
-
-commissions.addEventListener("click", async function(event) {
-  commissionsPopUp.classList.toggle("active");
-});
-
-commissionsOverlay.addEventListener("click", async function(event) {
-  commissionsPopUp.classList.toggle("active");
-});
-
-closeButtonP.addEventListener("click", async function(event) {
-  portfolioPopUp.classList.toggle("active");
-});
-
-portfolio.addEventListener("click", async function(event) {
-  portfolioPopUp.classList.toggle("active");
-});
-
-portfolioOverlay.addEventListener("click", async function(event) {
-  portfolioPopUp.classList.toggle("active");
-});
-
-closeButtonPr.addEventListener("click", async function(event) {
-  projectsPopUp.classList.toggle("active");
-});
-
-projects.addEventListener("click", async function(event) {
-  projectsPopUp.classList.toggle("active");
-});
-
-projectsOverlay.addEventListener("click", async function(event) {
-  projectsPopUp.classList.toggle("active");
-});
+  
+// Initialize with the About Me page content
+fetch(`pages/home.html`)
+    .then((res) => res.text())
+    .then((text) => {
+        pageContent.innerHTML = text;
+    })
+    .catch((e) => console.error(e));
