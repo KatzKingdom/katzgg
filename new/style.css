@@ -116,3 +116,9 @@ nav {
 .social-icon {
     width: 4rem;
 }
+
+/* Coming Soon Content */
+.coming-soon {
+    width: 20rem;
+    border-radius: 8px;
+}
