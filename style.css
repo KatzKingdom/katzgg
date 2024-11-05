@@ -123,6 +123,46 @@ nav {
     color: #bbb;
 }
 
+/* About me page */
+.content-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-direction: row;
+}
+
+.content-item img {
+    width: 40%;
+    max-width: 250px;
+    height: auto;
+    margin: 0 20px;
+    border-radius: 8px;
+}
+
+.content-item:nth-child(odd) {
+    flex-direction: row;
+}
+
+.content-item:nth-child(even) {
+    flex-direction: row-reverse;
+}
+
+/* Content image design */
+@media (max-width: 768px) {
+    .content-item:nth-child(odd) {
+        flex-direction: column;
+    }
+    
+    .content-item:nth-child(even) {
+        flex-direction: column;
+    }
+    .content-item img {
+        width: 75%; 
+        max-width: 200px;
+        margin: 10px 0;
+    }
+}
+
 /* Contact page */
 .social-icon {
     width: 4rem;
