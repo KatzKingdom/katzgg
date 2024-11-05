@@ -112,6 +112,10 @@ nav {
     margin-bottom: 20px;
 }
 
+#page-content a {
+    color: #bbb;
+}
+
 /* Contact page */
 .social-icon {
     width: 4rem;

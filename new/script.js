@@ -29,7 +29,7 @@ document.querySelectorAll("nav a").forEach(link => {
 });
   
 // Initialize with the About Me page content
-fetch(`pages/about.html`)
+fetch(`pages/home.html`)
     .then((res) => res.text())
     .then((text) => {
         pageContent.innerHTML = text;
