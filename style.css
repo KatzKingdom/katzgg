@@ -141,7 +141,7 @@ button {
     margin-bottom: 20px;
 }
 
-#page-content a {
+.about-me-link {
     color: #bbb;
 }
 
@@ -194,4 +194,77 @@ button {
 .coming-soon {
     width: 20rem;
     border-radius: 8
+}
+
+/* Portfolio Page */ 
+
+/* Project tab container */
+.project-tab {
+    display: flex;
+    align-items: center;
+    background-color: #000;
+    color: #eee;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    max-width: 100%;
+}
+
+/* Image inside the project tab */
+.project-image {
+    width: 150px;
+    height: 150px;
+    border-radius: 8px;
+    margin-right: 20px; 
+    object-fit: cover; 
+}
+
+.project-details {
+    flex-grow: 1;
+}
+
+.project-title {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+.project-description {
+    font-size: 1rem;
+    margin: 0;
+}
+
+/* Learn More link */
+.project-learn-more {
+    margin-left: 20px;
+    text-align: right;
+}
+
+.learn-more-link {
+    text-decoration: none;
+    color: #eee;
+    font-weight: bold;
+    transition: color 0.3s ease;
+}
+
+.learn-more-link:hover {
+    color: #c89933; /* Highlight effect */
+}
+
+/* Move image layout for mobile */
+@media (max-width: 768px) {
+    .project-tab {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .project-image {
+        margin: 0 0 20px 0;
+    }
+
+    .project-learn-more {
+        margin: 20px 0 0 0;
+    }
 }
