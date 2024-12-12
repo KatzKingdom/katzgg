@@ -4,20 +4,11 @@ const contentContainer = document.getElementById("content-container");
 
 const projects = [
     {
-        image: "/assets/contact/linkedin.png",
-        title: "Project One",
-        description: "This is a brief description of Project One.",
+        image: "/assets/about/profile.png",
+        title: "Coming Soon...",
+        description: "Stay tuned! My portfolio will be released in the near future.",
+        page: "proj1",
     },
-    {
-        image: "/assets/contact/email.png",
-        title: "Project Two",
-        description: "This is a brief description of Project Two.",
-    },
-    {
-        image: "/assets/contact/email.png",
-        title: "Project Two",
-        description: "This is a brief description of Project Two.",
-    }
 ];
 
 document.addEventListener("mousemove", (e) => {
@@ -48,12 +39,24 @@ document.querySelectorAll("nav a").forEach(link => {
                         <p class="project-description">${project.description}</p>
                     </div>
                     <div class="project-learn-more">
-                        <a href="#" class="learn-more-link">Learn More ➡</a>
+                        <a href="#" data-page="${project.page}" class="learn-more-link">Learn More ➡</a>
                     </div>
                 </div>
             `
             )
             .join("");
+            document.querySelectorAll(".learn-more-link").forEach(link => {
+                link.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    const page2 = e.target.getAttribute("data-page");
+                    fetch(`pages/${page2}.html`)
+                    .then((res) => res.text())
+                    .then((text) => {
+                        pageContent.innerHTML = text;
+                    })
+                    .catch((e) => console.error(e));
+                });
+            });
         } else {
             fetch(`pages/${page}.html`)
             .then((res) => res.text())
@@ -64,7 +67,7 @@ document.querySelectorAll("nav a").forEach(link => {
         }
     });
 });
-  
+
 // Initialize with the Home page content
 fetch(`pages/home.html`)
     .then((res) => res.text())
