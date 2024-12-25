@@ -4,10 +4,10 @@ const contentContainer = document.getElementById("content-container");
 
 const projects = [
     {
-        image: "/assets/about/profile.png",
-        title: "Coming Soon...",
-        description: "Stay tuned! My portfolio will be released in the near future.",
-        page: "proj1",
+        image: "/assets/about/iNeedThisClass.png",
+        title: "iNeedThisClass",
+        description: "A webscraper email alert system I created and used to notify myself of a class becoming available during add-drop period.",
+        page: "iNeedThisClass",
     },
 ];
 
