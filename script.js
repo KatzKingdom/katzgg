@@ -4,7 +4,7 @@ const contentContainer = document.getElementById("content-container");
 
 const projects = [
     {
-        image: "/assets/about/iNeedThisClass.png",
+        image: "/assets/portfolio/iNeedThisClass.png",
         title: "iNeedThisClass",
         description: "A webscraper email alert system I created and used to notify myself of a class becoming available during add-drop period.",
         page: "iNeedThisClass",
