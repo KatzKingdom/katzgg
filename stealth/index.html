@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Eye-Tracking Prototype</title>
+
+  <!-- 1. Pull in WebGazer -->
+  <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
+
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 1em;
+    }
+    #instructions {
+      margin-bottom: 1.5em;
+    }
+    /* 2. The overlay “cursor” */
+    #overlayCursor {
+      position: fixed;
+      width: 20px;
+      height: 20px;
+      background-color: rgba(255, 0, 0, 0.6);
+      border-radius: 50%;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      z-index: 999999;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Eye-Tracking Prototype</h1>
+  <p id="instructions">
+    1) Allow camera access when prompted.<br>
+    2) Click anywhere on the page while looking at that spot to calibrate.<br>
+    3) Watch the red dot follow your gaze!
+  </p>
+
+  <!-- 3. Hidden video element (needed by WebGazer under the hood) -->
+  <video id="webgazerVideo" style="display:none;"></video>
+
+  <!-- 4. Our gaze-pointer -->
+  <div id="overlayCursor"></div>
+
+  <script>
+  (async function() {
+    // Grab elements
+    const videoEl = document.getElementById('webgazerVideo');
+    const cursorEl = document.getElementById('overlayCursor');
+
+    // 1) Start webcam
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      videoEl.srcObject = stream;
+      await videoEl.play();
+    } catch (err) {
+      console.error('❌ Camera access denied or no camera found', err);
+      document.getElementById('instructions').innerText =
+        'Camera access is required for eye-tracking. Please reload and allow camera.';
+      return;
+    }
+
+    // 2) Initialize WebGazer
+    webgazer
+      .setRegression('ridge')                       // default
+      .setTracker('clmtrackr')                      // default
+      .setGazeListener(function(data, elapsedTime) {
+        if (!data) return;
+        // data.x/y are coordinates relative to the viewport
+        cursorEl.style.left = data.x + 'px';
+        cursorEl.style.top  = data.y + 'px';
+      })
+      .showVideoPreview(false)                      // hide WebGazer’s preview
+      .showPredictionPoints(false)                  // hide its small blue dot
+      .begin();
+
+    // 3) Self‐calibration: recordScreenPosition on clicks
+    document.addEventListener('click', function(evt) {
+      // record the true screen position along with the current webcam features
+      webgazer.recordScreenPosition(evt.clientX, evt.clientY, 'click');
+    });
+  })();
+  </script>
+</body>
+</html>
