@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Eye-Tracking Prototype</title>
+  <title>Eye-Tracking with Away/Zoned-Out Detection</title>
 
-  <!-- 1. Pull in WebGazer -->
+  <!-- WebGazer.js -->
   <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
 
   <style>
@@ -13,11 +13,11 @@
       text-align: center;
       margin: 0;
       padding: 1em;
+      transition: background-color 0.2s ease;
     }
     #instructions {
       margin-bottom: 1.5em;
     }
-    /* 2. The overlay “cursor” */
     #overlayCursor {
       position: fixed;
       width: 20px;
@@ -36,52 +36,96 @@
   <p id="instructions">
     1) Allow camera access when prompted.<br>
     2) Click anywhere on the page while looking at that spot to calibrate.<br>
-    3) Watch the red dot follow your gaze!
+    3) Red background = user is away or zoned out.
   </p>
 
-  <!-- 3. Hidden video element (needed by WebGazer under the hood) -->
   <video id="webgazerVideo" style="display:none;"></video>
-
-  <!-- 4. Our gaze-pointer -->
   <div id="overlayCursor"></div>
 
   <script>
   (async function() {
-    // Grab elements
     const videoEl = document.getElementById('webgazerVideo');
     const cursorEl = document.getElementById('overlayCursor');
+    const body = document.body;
 
-    // 1) Start webcam
+    // parameters
+    const AWAY_TIMEOUT_MS      = 2000;   // no valid gaze for 2s → “away”
+    const ZONE_WINDOW_MS       = 3000;   // analyze last 3s of gaze
+    const ZONE_MOVE_THRESHOLD  = 50;     // px: if gaze moves < this in window → “zoned”
+    const CHECK_INTERVAL_MS    = 200;    // how often we re-check body color
+
+    // state
+    let lastValidGazeTime = performance.now();
+    const gazeHistory = []; // {x, y, t}
+
+    // start camera
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       videoEl.srcObject = stream;
       await videoEl.play();
     } catch (err) {
-      console.error('❌ Camera access denied or no camera found', err);
+      console.error('Camera error', err);
       document.getElementById('instructions').innerText =
-        'Camera access is required for eye-tracking. Please reload and allow camera.';
+        'Camera access required – please reload and allow.';
       return;
     }
 
-    // 2) Initialize WebGazer
+    // init WebGazer
     webgazer
-      .setRegression('ridge')                       // default
-      .setTracker('clmtrackr')                      // default
-      .setGazeListener(function(data, elapsedTime) {
+      .setGazeListener((data, elapsedTime) => {
         if (!data) return;
-        // data.x/y are coordinates relative to the viewport
-        cursorEl.style.left = data.x + 'px';
-        cursorEl.style.top  = data.y + 'px';
+        const t = performance.now();
+        lastValidGazeTime = t;
+        const { x, y } = data;
+
+        // draw cursor
+        cursorEl.style.left = x + 'px';
+        cursorEl.style.top  = y + 'px';
+
+        // record gaze history
+        gazeHistory.push({ x, y, t });
+        // drop old points
+        while (gazeHistory.length && gazeHistory[0].t < t - ZONE_WINDOW_MS) {
+          gazeHistory.shift();
+        }
       })
-      .showVideoPreview(false)                      // hide WebGazer’s preview
-      .showPredictionPoints(false)                  // hide its small blue dot
+      .showVideoPreview(false)
+      .showPredictionPoints(false)
       .begin();
 
-    // 3) Self‐calibration: recordScreenPosition on clicks
-    document.addEventListener('click', function(evt) {
-      // record the true screen position along with the current webcam features
+    // calibration on click
+    document.addEventListener('click', evt => {
       webgazer.recordScreenPosition(evt.clientX, evt.clientY, 'click');
     });
+
+    // periodic check
+    setInterval(() => {
+      const now = performance.now();
+
+      // 1) Away detection
+      const away = (now - lastValidGazeTime) > AWAY_TIMEOUT_MS;
+
+      // 2) Zoned-out detection: check movement range in history
+      let zoned = false;
+      if (gazeHistory.length > 1) {
+        let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+        for (const p of gazeHistory) {
+          if (p.x < minX) minX = p.x;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.y > maxY) maxY = p.y;
+        }
+        const dx = maxX - minX;
+        const dy = maxY - minY;
+        // if user’s gaze stayed within a small box for the entire window
+        zoned = (dx < ZONE_MOVE_THRESHOLD && dy < ZONE_MOVE_THRESHOLD);
+      }
+
+      // if either, turn red; otherwise white
+      body.style.backgroundColor = (away || zoned) ? '#fcc' : '#fff';
+
+    }, CHECK_INTERVAL_MS);
+
   })();
   </script>
 </body>
