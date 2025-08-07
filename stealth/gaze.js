@@ -9,12 +9,11 @@
   const calPts = [];
   let lastNorm = null;
 
-  // 3) Create the FaceMesh detector (v1.x API)
+  // 3) Create the FaceMesh detector using the TFJS runtime only
   const modelType = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
   const detectorConfig = {
-    runtime: 'mediapipe',
-    solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh',
-    refineLandmarks: true,  // enables iris detection
+    runtime: 'tfjs',        // <-- use the TFJS implementation
+    refineLandmarks: true,  // still get iris landmarks
     maxFaces: 1
   };
   const detector = await faceLandmarksDetection.createDetector(modelType, detectorConfig);
@@ -33,10 +32,9 @@
 
   // 6) Main render loop
   async function render() {
-    // estimateFaces takes the video element directly
     const faces = await detector.estimateFaces(video, { flipHorizontal: false });
     if (faces.length > 0) {
-      const keypoints = faces[0].scaledMesh;  // [ [x,y,z], … ]
+      const keypoints = faces[0].scaledMesh;
 
       // pick right‐eye landmarks by index
       const iris   = keypoints[468];
