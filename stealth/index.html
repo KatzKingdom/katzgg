@@ -2,15 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>High-Accuracy Eye-Tracking Prototype</title>
+  <title>Eye-Tracking Prototype</title>
 
-  <!-- 1. Load TF.js core & WebGL backend -->
+  <!-- 1) TF.js (core + backends) -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
-  <!-- MediaPipe FaceMesh runtime -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/face_mesh.js"></script>
-  <!-- TF.js Face-Landmarks UMD bundle -->
+  <!-- 2) TFJS Face-Landmarks UMD bundle -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection/dist/face-landmarks-detection.js"></script>
-  <!-- then your gaze.js -->
+  <!-- 3) Your gaze code -->
   <script src="gaze.js" defer></script>
 
   <style>
@@ -35,9 +33,7 @@
 <body>
   <h1>Eye-Tracking Prototype</h1>
   <p>Allow camera access, then click to calibrate. Red dot follows your gaze.</p>
-  <!-- hidden video to feed TF.js -->
   <video id="webcam" autoplay playsinline style="display:none;"></video>
-  <!-- our gaze pointer -->
   <div id="overlayCursor"></div>
 </body>
 </html>
