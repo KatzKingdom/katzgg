@@ -9,11 +9,12 @@
   const calPts = [];
   let lastNorm = null;
 
-  // 3) Create the FaceMesh detector using the TFJS runtime only
+  // 3) Create the FaceMesh detector (MediaPipe runtime)
   const modelType = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
   const detectorConfig = {
-    runtime: 'tfjs',        // <-- use the TFJS implementation
-    refineLandmarks: true,  // still get iris landmarks
+    runtime: 'mediapipe',                      // ← must be mediapipe for v1.x
+    solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh',
+    refineLandmarks: true,  // includes iris detection
     maxFaces: 1
   };
   const detector = await faceLandmarksDetection.createDetector(modelType, detectorConfig);
@@ -21,7 +22,7 @@
   // 4) Start the webcam feed
   const stream = await navigator.mediaDevices.getUserMedia({ video: true });
   video.srcObject = stream;
-  await new Promise(resolve => video.onloadedmetadata = resolve);
+  await new Promise(r => video.onloadedmetadata = r);
 
   // 5) Calibration on click (collect 9 points, then fit)
   document.addEventListener('click', e => {
@@ -35,8 +36,7 @@
     const faces = await detector.estimateFaces(video, { flipHorizontal: false });
     if (faces.length > 0) {
       const keypoints = faces[0].scaledMesh;
-
-      // pick right‐eye landmarks by index
+      // right‐eye landmarks
       const iris   = keypoints[468];
       const inner  = keypoints[133];
       const outer  = keypoints[33];
@@ -45,7 +45,7 @@
 
       // normalize into [0,1]
       const nx = (iris[0] - inner[0]) / (outer[0] - inner[0]);
-      const ny = (iris[1] - topLid[1]) / (botLid[1]  - topLid[1]);
+      const ny = (iris[1] - topLid[1])  / (botLid[1]  - topLid[1]);
       lastNorm = { x: nx, y: ny };
 
       // apply linear calibration
@@ -56,31 +56,28 @@
       cursor.style.left = `${sx}px`;
       cursor.style.top  = `${sy}px`;
     }
-
     requestAnimationFrame(render);
   }
   render();
 
-  // 7) Simple least‐squares fit for calibration
+  // 7) Simple least‐squares calibration
   function fitCalib() {
     const A  = calPts.map(p => [p[0], 1]);
     const bx = calPts.map(p => p[2]);
     const by = calPts.map(p => p[3]);
-
     const solve = (M, b) => {
-      let [a00, a01, a11, b0, b1] = [0, 0, 0, 0, 0];
-      for (let i = 0; i < M.length; i++) {
-        const [x, c] = M[i];
+      let [a00,a01,a11,b0,b1] = [0,0,0,0,0];
+      for (let i=0; i<M.length; i++) {
+        const [x,c] = M[i];
         a00 += x*x; a01 += x*c; a11 += c*c;
         b0  += x*b[i]; b1  += c*b[i];
       }
       const det = a00*a11 - a01*a01;
       return [
         ( b0*a11 - a01*b1 ) / det,
-        ( a00*b1 - b0*a01 ) / det
+        ( a00*b1   - b0*a01) / det
       ];
     };
-
     [calib.mx, calib.bx] = solve(A, bx);
     [calib.my, calib.by] = solve(A, by);
     console.log('Calibration complete:', calib);
