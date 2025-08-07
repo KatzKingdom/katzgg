@@ -8,13 +8,12 @@
   const calPts = [];
   let lastNorm = null;
 
-  // 1) Create FaceMesh detector, pointing to the MP package root (not a .js file)
+  // 1) Create FaceMesh detector (MediaPipe runtime)
   const modelType = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
   const detectorConfig = {
-    runtime: 'mediapipe',  
-    // <-- point to the package root so it can fetch face_mesh.js + .wasm + .bin
+    runtime: 'mediapipe',
     solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4',
-    refineLandmarks: true,  // iris landmarks
+    refineLandmarks: true,  // loads the iris submodel (adds 10 points)
     maxFaces: 1
   };
   const detector = await faceLandmarksDetection.createDetector(modelType, detectorConfig);
@@ -31,32 +30,34 @@
     if (calPts.length >= 9) fitCalib();
   });
 
-  // 4) Render loop
+  // 4) Main render loop
   async function render() {
     const faces = await detector.estimateFaces(video, { flipHorizontal: false });
     if (faces.length > 0) {
-      const keypoints = faces[0].scaledMesh;
+      // switch to keypoints (pixel coords), not scaledMesh
+      const keypoints = faces[0].keypoints;
 
-      // if iris landmarks didn’t load, bail out early
-      if (keypoints.length <= 468) {
-        console.warn('No iris data yet – got only', keypoints.length, 'points');
+      // wait until iris points are present (478 total)
+      if (keypoints.length < 478) {
+        console.warn('Waiting for iris model to load; got', keypoints.length, 'points');
       } else {
-        // right‐eye landmarks
-        const iris   = keypoints[468];
-        const inner  = keypoints[133];
-        const outer  = keypoints[33];
-        const topLid = keypoints[159];
-        const botLid = keypoints[145];
+        // pick right‐eye landmarks by index
+        const iris   = keypoints[468];  // first iris point
+        const inner  = keypoints[133];  // eye inner corner
+        const outer  = keypoints[33];   // eye outer corner
+        const topLid = keypoints[159];  // upper eyelid
+        const botLid = keypoints[145];  // lower eyelid
 
-        // normalize into [0,1]
-        const nx = (iris[0] - inner[0]) / (outer[0] - inner[0]);
-        const ny = (iris[1] - topLid[1]) / (botLid[1] - topLid[1]);
+        // normalize into [0,1] within the eye box
+        const nx = (iris.x - inner.x) / (outer.x - inner.x);
+        const ny = (iris.y - topLid.y)  / (botLid.y  - topLid.y);
         lastNorm = { x: nx, y: ny };
 
-        // apply calibration
+        // apply linear calibration
         const sx = nx * calib.mx + calib.bx;
         const sy = ny * calib.my + calib.by;
 
+        // move the red dot
         cursor.style.left = `${sx}px`;
         cursor.style.top  = `${sy}px`;
       }
@@ -81,7 +82,7 @@
       const det = a00*a11 - a01*a01;
       return [
         ( b0*a11 - a01*b1 ) / det,
-        ( a00*b1   - b0*a01) / det
+        ( a00*b1   - b0*a01 ) / det
       ];
     };
 
