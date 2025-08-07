@@ -2,131 +2,43 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Eye-Tracking with Away/Zoned-Out Detection</title>
+  <title>High-Accuracy Eye-Tracking Prototype</title>
 
-  <!-- WebGazer.js -->
-  <script src="https://webgazer.cs.brown.edu/webgazer.js"></script>
+  <!-- 1. Load TF.js core & WebGL backend -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+
+  <!-- 2. Load the face-landmarks-detection model (MediaPipe FaceMesh + Iris) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/face-landmarks-detection"></script>
 
   <style>
     body {
       font-family: sans-serif;
       text-align: center;
-      margin: 0;
-      padding: 1em;
-      transition: background-color 0.2s ease;
-    }
-    #instructions {
-      margin-bottom: 1.5em;
+      margin: 0; padding: 1em;
+      background: #fff;
+      transition: background-color 0.2s;
     }
     #overlayCursor {
       position: fixed;
-      width: 20px;
-      height: 20px;
-      background-color: rgba(255, 0, 0, 0.6);
+      width: 15px; height: 15px;
+      background: rgba(255,0,0,0.6);
       border-radius: 50%;
       pointer-events: none;
-      transform: translate(-50%, -50%);
       z-index: 999999;
+      transform: translate(-50%,-50%);
     }
   </style>
 </head>
 <body>
-
   <h1>Eye-Tracking Prototype</h1>
-  <p id="instructions">
-    1) Allow camera access when prompted.<br>
-    2) Click anywhere on the page while looking at that spot to calibrate.<br>
-    3) Red background = user is away or zoned out.
-  </p>
-
-  <video id="webgazerVideo" style="display:none;"></video>
+  <p>Allow camera access, then click to calibrate. Red dot follows your gaze.</p>
+  <!-- hidden video to feed TF.js -->
+  <video id="webcam" autoplay playsinline style="display:none;"></video>
+  <!-- our gaze pointer -->
   <div id="overlayCursor"></div>
 
-  <script>
-  (async function() {
-    const videoEl = document.getElementById('webgazerVideo');
-    const cursorEl = document.getElementById('overlayCursor');
-    const body = document.body;
-
-    // parameters
-    const AWAY_TIMEOUT_MS      = 2000;   // no valid gaze for 2s → “away”
-    const ZONE_WINDOW_MS       = 3000;   // analyze last 3s of gaze
-    const ZONE_MOVE_THRESHOLD  = 50;     // px: if gaze moves < this in window → “zoned”
-    const CHECK_INTERVAL_MS    = 200;    // how often we re-check body color
-
-    // state
-    let lastValidGazeTime = performance.now();
-    const gazeHistory = []; // {x, y, t}
-
-    // start camera
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      videoEl.srcObject = stream;
-      await videoEl.play();
-    } catch (err) {
-      console.error('Camera error', err);
-      document.getElementById('instructions').innerText =
-        'Camera access required – please reload and allow.';
-      return;
-    }
-
-    // init WebGazer
-    webgazer
-      .setGazeListener((data, elapsedTime) => {
-        if (!data) return;
-        const t = performance.now();
-        lastValidGazeTime = t;
-        const { x, y } = data;
-
-        // draw cursor
-        cursorEl.style.left = x + 'px';
-        cursorEl.style.top  = y + 'px';
-
-        // record gaze history
-        gazeHistory.push({ x, y, t });
-        // drop old points
-        while (gazeHistory.length && gazeHistory[0].t < t - ZONE_WINDOW_MS) {
-          gazeHistory.shift();
-        }
-      })
-      .showVideoPreview(false)
-      .showPredictionPoints(false)
-      .begin();
-
-    // calibration on click
-    document.addEventListener('click', evt => {
-      webgazer.recordScreenPosition(evt.clientX, evt.clientY, 'click');
-    });
-
-    // periodic check
-    setInterval(() => {
-      const now = performance.now();
-
-      // 1) Away detection
-      const away = (now - lastValidGazeTime) > AWAY_TIMEOUT_MS;
-
-      // 2) Zoned-out detection: check movement range in history
-      let zoned = false;
-      if (gazeHistory.length > 1) {
-        let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
-        for (const p of gazeHistory) {
-          if (p.x < minX) minX = p.x;
-          if (p.x > maxX) maxX = p.x;
-          if (p.y < minY) minY = p.y;
-          if (p.y > maxY) maxY = p.y;
-        }
-        const dx = maxX - minX;
-        const dy = maxY - minY;
-        // if user’s gaze stayed within a small box for the entire window
-        zoned = (dx < ZONE_MOVE_THRESHOLD && dy < ZONE_MOVE_THRESHOLD);
-      }
-
-      // if either, turn red; otherwise white
-      body.style.backgroundColor = (away || zoned) ? '#fcc' : '#fff';
-
-    }, CHECK_INTERVAL_MS);
-
-  })();
-  </script>
+  <!-- 3. Your custom gaze logic -->
+  <script src="gaze.js" defer></script>
 </body>
 </html>
