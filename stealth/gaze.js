@@ -3,12 +3,11 @@
   // ──────────────── 1) Grab DOM references ────────────────
   const video  = document.getElementById('webcam');
   const cursor = document.getElementById('overlayCursor');
+  const body   = document.body;
 
-  // ──────────────── 2) Calibration & smoothing state ────────────────
+  // ──────────────── 2) Calibration, smoothing & detection state ────────────────
   const calib = {
-    //   ax*nx + bx*ny + cx*nx² + dx*nx*ny + ex*ny² + fx
     ax: window.innerWidth, bx: 0, cx: 0, dx: 0, ex: 0, fx: 0,
-    //   ay*nx + by*ny + cy*nx² + dy*nx*ny + ey*ny² + fy
     ay: 0, by: window.innerHeight, cy: 0, dy: 0, ey: 0, fy: 0
   };
   const calPts = [];
@@ -16,47 +15,49 @@
 
   // smoothing
   let smoothX = 0, smoothY = 0;
-  const alpha = 0.2;  // EMA factor
+  const alpha = 0.2;
 
-  console.log('[Init] Starting up gaze.js');
+  // away/zoned detection
+  const AWAY_TIMEOUT_MS     = 2000;  // no gaze for 2s → away
+  const ZONE_WINDOW_MS      = 3000;  // look at last 3s
+  const ZONE_MOVE_THRESHOLD = 0.02;  // normalized units
+  let lastValidGazeTime = performance.now();
+  const gazeHistory = []; // { x: normX, y: normY, t: timestamp }
 
-  // ──────────────── 3) Load the MediaPipe FaceMesh detector ────────────────
+  console.log('[Init] Starting gaze.js');
+
+  // ──────────────── 3) Load MediaPipe FaceMesh detector ────────────────
   const modelType = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
   const detectorConfig = {
-    runtime: 'mediapipe',                          // use MediaPipe for iris
+    runtime: 'mediapipe',
     solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4',
-    refineLandmarks: true,                        // get the 10 iris points
+    refineLandmarks: true,
     maxFaces: 1
   };
   const detector = await faceLandmarksDetection.createDetector(modelType, detectorConfig);
   console.log('[Init] Detector ready');
 
-  // ──────────────── 4) Start the webcam ────────────────
+  // ──────────────── 4) Start webcam ────────────────
   const stream = await navigator.mediaDevices.getUserMedia({ video: true });
   video.srcObject = stream;
   await new Promise(r => video.onloadedmetadata = r);
   console.log('[Init] Webcam started');
 
   // ──────────────── 5) Auto-harvest clicks for calibration ────────────────
-  document.addEventListener('click', async e => {
+  document.addEventListener('click', e => {
     if (!lastNorm) return;
-    console.log(
-      `[Cal] Harvest: norm=(${lastNorm.x.toFixed(3)},${lastNorm.y.toFixed(3)}) ` +
-      `→ screen=(${e.clientX},${e.clientY})`
-    );
     calPts.push([ lastNorm.x, lastNorm.y, e.clientX, e.clientY ]);
-    // once we have ≥6 points, solve the 6-term polynomial
     if (calPts.length >= 6) {
-      await fitPolyCalib();
-      calPts.length = 0;  // clear for next batch
+      fitPolyCalib();
+      calPts.length = 0;
     }
   });
 
-  // ──────────────── 6) Main rendering loop ────────────────
+  // ──────────────── 6) Main render loop ────────────────
   async function render() {
     const faces = await detector.estimateFaces(video, { flipHorizontal: false });
     if (faces.length > 0) {
-      // unify the mesh: either .keypoints or .scaledMesh
+      // unify mesh format
       let mesh;
       if (faces[0].keypoints) {
         mesh = faces[0].keypoints;
@@ -67,83 +68,96 @@
         return;
       }
 
-      // wait for the iris points (478 total with refineLandmarks)
+      // check for iris points
       if (mesh.length >= 478) {
-        // pick out the right eye corners & first iris point
         const iris   = mesh[468];
         const inner  = mesh[133];
         const outer  = mesh[33];
         const topLid = mesh[159];
         const botLid = mesh[145];
 
-        // normalized gaze within eye-box [0..1]
+        // normalized gaze in eye-box
         const nx = (iris.x - inner.x) / (outer.x - inner.x);
         const ny = (iris.y - topLid.y)  / (botLid.y  - topLid.y);
         lastNorm = { x: nx, y: ny };
 
-        // discard wild outliers
-        if (nx < -0.2 || nx > 1.2 || ny < -0.2 || ny > 1.2) {
-          console.warn('[Render] Outlier norm:', nx, ny);
-        } else {
-          // polynomial mapping → raw coords
-          const rawX = 
-            calib.ax * nx +
-            calib.bx * ny +
-            calib.cx * nx*nx +
-            calib.dx * nx*ny +
-            calib.ex * ny*ny +
-            calib.fx;
-
-          const rawY =
-            calib.ay * nx +
-            calib.by * ny +
-            calib.cy * nx*nx +
-            calib.dy * nx*ny +
-            calib.ey * ny*ny +
-            calib.fy;
-
-          // smooth it
-          smoothX = alpha * rawX + (1 - alpha) * smoothX;
-          smoothY = alpha * rawY + (1 - alpha) * smoothY;
-
-          // move the dot
-          cursor.style.left = `${smoothX}px`;
-          cursor.style.top  = `${smoothY}px`;
+        // record valid gaze time & history
+        const now = performance.now();
+        lastValidGazeTime = now;
+        gazeHistory.push({ x: nx, y: ny, t: now });
+        // drop old history
+        while (gazeHistory.length && gazeHistory[0].t < now - ZONE_WINDOW_MS) {
+          gazeHistory.shift();
         }
+
+        // polynomial mapping → raw coords
+        const rawX =
+          calib.ax * nx +
+          calib.bx * ny +
+          calib.cx * nx*nx +
+          calib.dx * nx*ny +
+          calib.ex * ny*ny +
+          calib.fx;
+        const rawY =
+          calib.ay * nx +
+          calib.by * ny +
+          calib.cy * nx*nx +
+          calib.dy * nx*ny +
+          calib.ey * ny*ny +
+          calib.fy;
+
+        // smoothing
+        smoothX = alpha * rawX + (1 - alpha) * smoothX;
+        smoothY = alpha * rawY + (1 - alpha) * smoothY;
+
+        // move the dot
+        cursor.style.left = `${smoothX}px`;
+        cursor.style.top  = `${smoothY}px`;
       }
     }
+
+    // ────────── 7) Away & zoned detection ──────────
+    const now = performance.now();
+    const away  = (now - lastValidGazeTime) > AWAY_TIMEOUT_MS;
+
+    let zoned = false;
+    if (gazeHistory.length > 1) {
+      let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+      for (const p of gazeHistory) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      }
+      const dx = maxX - minX;
+      const dy = maxY - minY;
+      zoned = (dx < ZONE_MOVE_THRESHOLD && dy < ZONE_MOVE_THRESHOLD);
+    }
+
+    body.style.backgroundColor = (away || zoned) ? '#fcc' : '#fff';
 
     requestAnimationFrame(render);
   }
   render();
 
-  // ──────────────── 7) Fit the 2nd-order polynomial by least-squares ────────────────
+  // ──────────────── 8) Fit the 2nd-order polynomial ────────────────
   async function fitPolyCalib() {
-    console.log('[Cal] Fitting polynomial with', calPts.length, 'points');
+    const M  = calPts.map(([nx, ny, sx, sy]) => [nx, ny, nx*nx, nx*ny, ny*ny, 1]);
+    const bX = calPts.map(p => p[2]);
+    const bY = calPts.map(p => p[3]);
 
-    // build design matrix M (N×6) and target vectors bX, bY
-    const M    = calPts.map(([nx, ny, sx, sy]) => [nx, ny, nx*nx, nx*ny, ny*ny, 1]);
-    const bX   = calPts.map(p => p[2]);
-    const bY   = calPts.map(p => p[3]);
-
-    // use tf.js pseudoinverse to solve: coeff = pinv(M) × b
-    const M_t = tf.tensor2d(M);                  // shape [N,6]
+    // solve via tf.js pseudoinverse
+    const M_t  = tf.tensor2d(M);
     const bX_t = tf.tensor2d(bX, [bX.length, 1]);
     const bY_t = tf.tensor2d(bY, [bY.length, 1]);
+    const pinv = tf.linalg.pinv(M_t);
 
-    const pinv = tf.linalg.pinv(M_t);            // shape [6,N]
-    const coeffX = await pinv.matMul(bX_t).array();  // [[ax],[bx],…,[fx]]
-    const coeffY = await pinv.matMul(bY_t).array();  // [[ay],[by],…,[fy]]
+    const coeffX = await pinv.matMul(bX_t).array(); // [[ax],[bx],…]
+    const coeffY = await pinv.matMul(bY_t).array();
 
-    // unpack into calib
-    [calib.ax, calib.bx, calib.cx, calib.dx, calib.ex, calib.fx] =
-      coeffX.map(r => r[0]);
-    [calib.ay, calib.by, calib.cy, calib.dy, calib.ey, calib.fy] =
-      coeffY.map(r => r[0]);
+    [calib.ax, calib.bx, calib.cx, calib.dx, calib.ex, calib.fx] = coeffX.map(r => r[0]);
+    [calib.ay, calib.by, calib.cy, calib.dy, calib.ey, calib.fy] = coeffY.map(r => r[0]);
 
-    console.log('[Cal] New polynomial calib:', calib);
-
-    // clean up tensors
     tf.dispose([M_t, bX_t, bY_t, pinv]);
   }
 })();
