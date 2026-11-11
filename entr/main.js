@@ -1,0 +1,39 @@
+import * as T from './vendor/three.module.js';
+import {OrbitControls} from './vendor/OrbitControls.js';
+import {makePavilion} from './scene.js';
+const canvas=document.querySelector('canvas');
+const status=document.getElementById('status');
+const renderer=new T.WebGLRenderer({canvas,antialias:true,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;renderer.xr.enabled=true;
+const scene=new T.Scene();scene.background=new T.Color('#dbe9e5');scene.fog=new T.Fog('#dbe9e5',65,145);
+scene.add(new T.HemisphereLight('#eef8ff','#8a9165',2.5));
+const sun=new T.DirectionalLight('#fff1d5',3.4);sun.position.set(-20,36,18);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-30,right:30,top:25,bottom:-25,near:1,far:95});sun.shadow.bias=-.0004;sun.shadow.normalBias=.08;scene.add(sun);
+const model=makePavilion();scene.add(model);
+function sign(text,x,y,z){const c=document.createElement('canvas');c.width=512;c.height=128;const ctx=c.getContext('2d');ctx.fillStyle='#eef0e5';ctx.fillRect(0,0,512,128);ctx.fillStyle='#243f34';ctx.font='bold 46px Arial';ctx.textAlign='center';ctx.fillText(text,256,81);const texture=new T.CanvasTexture(c);texture.colorSpace=T.SRGBColorSpace;const plane=new T.Mesh(new T.PlaneGeometry(1.8,.45),new T.MeshBasicMaterial({map:texture,side:T.DoubleSide}));plane.position.set(x,y,z);scene.add(plane);}
+sign('RESTROOMS',8.4,2.8,3.39);sign('FOOD + COFFEE',7,1.75,.41);sign('FREE WATER',4.4,2.3,5.4);
+
+const camera=new T.PerspectiveCamera(58,1,.08,220);
+const controls=new OrbitControls(camera,canvas);controls.enableDamping=true;controls.maxPolarAngle=Math.PI*.485;controls.minDistance=.5;controls.maxDistance=80;controls.target.set(0,1.5,0);
+const views=[
+ {name:'Arrival',pos:[27,12,29],target:[0,1.7,0],text:'Approach from the public path. Drag to explore, scroll or pinch to zoom.'},
+ {name:'Lake terrace',pos:[4,1.7,-6.9],target:[0,1.3,-23],text:'Covered outdoor seating with a view of the water.'},
+ {name:'Study tables',pos:[-7.8,1.65,4.7],target:[-1,1.2,-2.5],text:'Indoor study tables, daylight, and views through the glazing.'},
+ {name:'Food & water',pos:[2.8,1.65,2.1],target:[8,1.3,1.7],text:'Food counter, refill station, and restrooms at the service end.'},
+ {name:'Public seating',pos:[19,1.65,10.5],target:[15,1,-5],text:'Benches beside the path and terrace, with no purchase required.'}
+];
+let current=0,motion=false,sensorOrigin=null,baseRotation=new T.Quaternion();
+function pick(i){current=i;const v=views[i];camera.position.set(...v.pos);controls.target.set(...v.target);camera.lookAt(controls.target);controls.update();baseRotation.copy(camera.quaternion);sensorOrigin=null;status.textContent=v.text;document.querySelectorAll('[data-view]').forEach((b,j)=>b.setAttribute('aria-pressed',i===j));}
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>pick(Number(b.dataset.view)));pick(0);
+function resize(){const w=canvas.clientWidth,h=canvas.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}window.addEventListener('resize',resize);resize();
+const q1=new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),-Math.PI/2),qScreen=new T.Quaternion(),qSensor=new T.Quaternion();
+function orientation(e){if(!motion||e.alpha===null)return;const k=Math.PI/180;const screenAngle=(screen.orientation?.angle??window.orientation??0)*k;qSensor.setFromEuler(new T.Euler((e.beta??0)*k,(e.alpha??0)*k,-(e.gamma??0)*k,'YXZ')).multiply(q1).multiply(qScreen.setFromAxisAngle(new T.Vector3(0,0,1),-screenAngle));if(!sensorOrigin)sensorOrigin=qSensor.clone().invert();camera.quaternion.copy(baseRotation).multiply(sensorOrigin.clone().multiply(qSensor));}
+window.addEventListener('deviceorientation',orientation);
+document.getElementById('motion').onclick=async()=>{if(motion){motion=false;controls.enabled=true;document.getElementById('motion').textContent='Phone look-around';status.textContent='Touch controls enabled.';return;}try{if(!isSecureContext){status.textContent='Phone motion needs an HTTPS link. Drag to look around here.';return;}if(!('DeviceOrientationEvent' in window)){status.textContent='Motion sensors are unavailable. Use touch controls.';return;}if(typeof DeviceOrientationEvent.requestPermission==='function'&&await DeviceOrientationEvent.requestPermission()!=='granted'){status.textContent='Motion permission was declined. Use touch controls.';return;}motion=true;controls.enabled=false;baseRotation.copy(camera.quaternion);sensorOrigin=null;document.getElementById('motion').textContent='Use touch controls';status.textContent='Move your phone to look around. Choose another viewpoint to recenter.';}catch{status.textContent='Motion could not start. Touch controls remain available.';}};
+document.getElementById('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{status.textContent='Fullscreen is unavailable in this browser. Landscape orientation gives a wider view.';}};
+function download(url,name){const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+document.getElementById('photo').onclick=()=>{renderer.render(scene,camera);canvas.toBlob(b=>{if(b)download(URL.createObjectURL(b),'pavilion-'+views[current].name.replaceAll(' ','-').toLowerCase()+'.png');});};
+document.getElementById('pano').onclick=()=>{status.textContent='Rendering a 360 panorama…';setTimeout(()=>{const prev=renderer.getRenderTarget();const cube=new T.WebGLCubeRenderTarget(768,{type:T.HalfFloatType});const cubeCamera=new T.CubeCamera(.08,220,cube);cubeCamera.position.copy(camera.position);cubeCamera.update(renderer,scene);const out=new T.WebGLRenderTarget(3072,1536);const material=new T.ShaderMaterial({uniforms:{pano:{value:cube.texture}},vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',fragmentShader:'uniform samplerCube pano;varying vec2 vUv;void main(){float a=(vUv.x-.5)*6.2831853;float b=(vUv.y-.5)*3.14159265;vec3 d=vec3(sin(a)*cos(b),sin(b),-cos(a)*cos(b));vec3 c=textureCube(pano,d).rgb;c=c/(c+vec3(1.));c=pow(c,vec3(1./2.2));gl_FragColor=vec4(c,1.);}'});const quad=new T.Mesh(new T.PlaneGeometry(2,2),material),panoScene=new T.Scene();panoScene.add(quad);renderer.setRenderTarget(out);renderer.render(panoScene,new T.Camera());const pixels=new Uint8Array(3072*1536*4);renderer.readRenderTargetPixels(out,0,0,3072,1536,pixels);renderer.setRenderTarget(prev);const imageCanvas=document.createElement('canvas');imageCanvas.width=3072;imageCanvas.height=1536;const ctx=imageCanvas.getContext('2d'),image=ctx.createImageData(3072,1536);for(let y=0;y<1536;y++)image.data.set(pixels.subarray((1535-y)*3072*4,(1536-y)*3072*4),y*3072*4);ctx.putImageData(image,0,0);imageCanvas.toBlob(b=>{if(b)download(URL.createObjectURL(b),'pavilion-360-'+views[current].name.replaceAll(' ','-').toLowerCase()+'.png');});cube.dispose();out.dispose();quad.geometry.dispose();material.dispose();status.textContent='360 panorama saved. Open it in a 360 photo viewer using equirectangular mode.';},40);};
+const vr=document.getElementById('vr');if(navigator.xr)navigator.xr.isSessionSupported('immersive-vr').then(ok=>{vr.hidden=!ok;}).catch(()=>{});vr.onclick=async()=>{try{const session=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor']});await renderer.xr.setSession(session);}catch{status.textContent='VR could not start. Continue with the phone or laptop controls.';}};
+renderer.setAnimationLoop(()=>{if(!motion)controls.update();renderer.render(scene,camera);});
+window.pavilionQA={scene,camera,renderer,views,pick,get current(){return current;}};
+document.getElementById('loading').remove();
